@@ -1,0 +1,17 @@
+stages:
+  - lint
+  - evaluate
+
+lint:
+  stage: lint
+  image: python:3.12-slim
+  script:
+    - pip install ruff
+    - ruff check src/
+
+evaluate:
+  stage: evaluate
+  image: python:3.12-slim
+  script:
+    - pip install -r requirements.txt
+    - python src/evaluate.py
