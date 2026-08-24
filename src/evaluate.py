@@ -1,7 +1,5 @@
 import joblib
-
 from sklearn.metrics import accuracy_score
-
 
 model = joblib.load("model.pkl")
 
