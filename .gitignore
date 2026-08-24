@@ -15,3 +15,6 @@ venv/
 
 # Environment/secrets
 .env
+
+
+model.pkl
