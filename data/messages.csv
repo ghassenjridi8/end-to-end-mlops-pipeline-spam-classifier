@@ -1,0 +1,13 @@
+text,label
+"Win a free iPhone now",spam
+"Claim your cash prize today",spam
+"Congratulations you have won 1000 euros",spam
+"Click here to get your free gift",spam
+"Urgent! Your account has won a reward",spam
+"Are we still meeting tonight?",not_spam
+"Can you send me the document?",not_spam
+"Happy birthday, hope you have a great day",not_spam
+"Don't forget our appointment tomorrow",not_spam
+"I will call you after work",not_spam
+
+
