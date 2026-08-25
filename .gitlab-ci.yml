@@ -35,7 +35,7 @@ train:
     - apt-get update && apt-get install -y python3-pip
 
     # Install our Python dependencies
-    - pip3 install -r requirements.txt
+    - pip3 install --break-system-packages -r requirements.txt
 
     # Train using the dataset stored in GCS
     - python3 src/train.py \
