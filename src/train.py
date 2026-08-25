@@ -1,10 +1,10 @@
 import argparse
+
 import joblib
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-
 
 parser = argparse.ArgumentParser()
 
