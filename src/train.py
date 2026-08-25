@@ -6,6 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
@@ -20,42 +21,23 @@ parser.add_argument(
     help="Path where the trained model should be saved",
 )
 
-
-parser.add_argument(
-    "--credentials",
-    required=False,
-    help="Path to GCP credentials file",
-)
-
 args = parser.parse_args()
 
-#data = pd.read_csv("data/messages.csv")
-#data = pd.read_csv(args.dataset)
-
-
-if args.credentials:
-    data = pd.read_csv(
-        args.dataset,
-        storage_options={
-            "token": args.credentials
-        },
-    )
-else:
-    data = pd.read_csv(args.dataset)
+data = pd.read_csv(args.dataset)
 
 X = data["text"]
 y = data["label"]
 
-model = Pipeline([
-    ("tfidf", TfidfVectorizer()),
-    ("classifier", LogisticRegression())
-])
+model = Pipeline(
+    [
+        ("tfidf", TfidfVectorizer()),
+        ("classifier", LogisticRegression()),
+    ]
+)
 
 model.fit(X, y)
 
-joblib.dump(model, "model.pkl")
+joblib.dump(model, args.output)
 
 print("Training complete")
-print("Model saved to model.pkl")
-
-
+print(f"Model saved to {args.output}")

@@ -19,26 +19,19 @@ train:
       aud: https://iam.googleapis.com/projects/773233738701/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
 
   script:
-    # Save GitLab's OIDC token temporarily
     - echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
 
-    # Exchange the GitLab identity for GCP credentials
     - gcloud iam workload-identity-pools create-cred-config projects/773233738701/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider --service-account=gitlab-ci@project-46677838-a710-49db-be5.iam.gserviceaccount.com --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
 
-    # Tell Google libraries such as gcsfs where the credentials are
     - export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json
 
-    # Authenticate gcloud using the federated credentials
     - gcloud auth login --cred-file=/tmp/gcp-credentials.json
 
-    # Install Python/pip
     - apt-get update && apt-get install -y python3-pip
 
-    # Install our Python dependencies
     - pip3 install --break-system-packages -r requirements.txt
 
-    # Train using the dataset stored in GCS
-    - python3 src/train.py --dataset gs://spam-classifier-mlops-project-ghassen/data/messages.csv --output model.pkl --credentials /tmp/gcp-credentials.json
+    - python3 src/train.py --dataset gs://spam-classifier-mlops-project-ghassen/data/messages.csv --output model.pkl
 
   artifacts:
     paths:
