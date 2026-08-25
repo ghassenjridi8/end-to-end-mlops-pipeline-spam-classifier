@@ -38,8 +38,7 @@ train:
     - pip3 install --break-system-packages -r requirements.txt
 
     # Train using the dataset stored in GCS
-    - python3 src/train.py 
-        --dataset gs://spam-classifier-mlops-project-ghassen/data/messages.csv --output model.pkl
+    - python3 src/train.py --dataset gs://spam-classifier-mlops-project-ghassen/data/messages.csv --output model.pkl --credentials /tmp/gcp-credentials.json
 
   artifacts:
     paths:
