@@ -2,6 +2,7 @@ stages:
   - lint
   - train
   - evaluate
+  - register 
 
 lint:
   stage: lint
@@ -45,3 +46,20 @@ evaluate:
   script:
     - pip install -r requirements.txt
     - python src/evaluate.py
+
+register:
+  stage: register
+  image: google/cloud-sdk:slim
+
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://iam.googleapis.com/projects/773233738701/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
+
+  script:
+    - echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
+
+    - gcloud iam workload-identity-pools create-cred-config projects/773233738701/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider --service-account=gitlab-ci@project-46677838-a710-49db-be5.iam.gserviceaccount.com --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
+
+    - gcloud auth login --cred-file=/tmp/gcp-credentials.json
+
+    - echo "Ready to register model from gs://spam-classifier-mlops-project-ghassen/models/$CI_COMMIT_SHA/"
