@@ -33,6 +33,8 @@ train:
 
     - python3 src/train.py --dataset gs://spam-classifier-mlops-project-ghassen/data/messages.csv --output model.pkl
 
+    - gcloud storage cp model.pkl gs://spam-classifier-mlops-project-ghassen/models/model.pkl
+
   artifacts:
     paths:
       - model.pkl
