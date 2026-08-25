@@ -30,7 +30,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 #data = pd.read_csv("data/messages.csv")
-data = pd.read_csv(args.dataset)
+#data = pd.read_csv(args.dataset)
 
 
 if args.credentials:
