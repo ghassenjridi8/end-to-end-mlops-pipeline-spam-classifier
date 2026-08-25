@@ -23,11 +23,19 @@ train:
 
     - gcloud iam workload-identity-pools create-cred-config projects/773233738701/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider --service-account=gitlab-ci@project-46677838-a710-49db-be5.iam.gserviceaccount.com --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
 
+    - export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json
+
     - gcloud auth login --cred-file=/tmp/gcp-credentials.json
 
-    - gcloud auth list
+    - apt-get update && apt-get install -y python3-pip
 
-    - gcloud storage cat gs://spam-classifier-mlops-project-ghassen/data/messages.csv
+    - pip3 install --break-system-packages -r requirements.txt
+
+    - python3 src/train.py --dataset gs://spam-classifier-mlops-project-ghassen/data/messages.csv --output model.pkl
+
+  artifacts:
+    paths:
+      - model.pkl
 
 evaluate:
   stage: evaluate
