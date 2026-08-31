@@ -84,8 +84,22 @@ build:
 
   script:
     - apt-get update && apt-get install -y docker.io
+
+    - echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
+
+    - gcloud iam workload-identity-pools create-cred-config projects/773233738701/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider --service-account=gitlab-ci@project-46677838-a710-49db-be5.iam.gserviceaccount.com --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
+
+    - export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json
+
+    - gcloud auth login --cred-file=/tmp/gcp-credentials.json
+
     - docker info
+
+    - gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
+
     - docker build -t europe-west3-docker.pkg.dev/project-46677838-a710-49db-be5/spam-classifier/spam-classifier:$CI_COMMIT_SHA .
+
+    - docker push europe-west3-docker.pkg.dev/project-46677838-a710-49db-be5/spam-classifier/spam-classifier:$CI_COMMIT_SHA
 
 
     
