@@ -120,6 +120,5 @@ deploy:
 
     - gcloud auth login --cred-file=/tmp/gcp-credentials.json
 
-    - gcloud run deploy spam-classifier --image=europe-west3-docker.pkg.dev/project-46677838-a710-49db-be5/spam-classifier/spam-classifier:$CI_COMMIT_SHA --region=europe-west3 --platform=managed --allow-unauthenticated
+    - gcloud run deploy spam-classifier --project=project-46677838-a710-49db-be5 --image=europe-west3-docker.pkg.dev/project-46677838-a710-49db-be5/spam-classifier/spam-classifier:$CI_COMMIT_SHA --region=europe-west3 --platform=managed --allow-unauthenticated 
 
-    
