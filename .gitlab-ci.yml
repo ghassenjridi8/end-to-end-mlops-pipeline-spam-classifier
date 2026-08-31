@@ -70,14 +70,22 @@ register:
     - echo "Ready to register model from gs://spam-classifier-mlops-project-ghassen/models/$CI_COMMIT_SHA/"
 
 
+
 build:
   stage: build
-  image: docker:27
+  image: google/cloud-sdk:slim
+
   services:
     - docker:27-dind
 
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://iam.googleapis.com/projects/773233738701/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
+
   script:
+    - apt-get update && apt-get install -y docker.io
     - docker info
-    - docker build -t spam-classifier:$CI_COMMIT_SHA .
+    - docker build -t europe-west3-docker.pkg.dev/project-46677838-a710-49db-be5/spam-classifier/spam-classifier:$CI_COMMIT_SHA .
 
 
+    
