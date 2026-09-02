@@ -5,6 +5,7 @@ stages:
   - register 
   - build
   - deploy
+  - integration_tests
 
 variables:
   DOCKER_HOST: tcp://docker:2375
@@ -122,4 +123,19 @@ deploy:
 
     - gcloud run deploy spam-classifier --project=project-46677838-a710-49db-be5 --image=europe-west3-docker.pkg.dev/project-46677838-a710-49db-be5/spam-classifier/spam-classifier:$CI_COMMIT_SHA --region=europe-west3 --platform=managed --allow-unauthenticated 
 
-    
+integration_tests:
+  stage: integration_tests
+  image: curlimages/curl:latest
+
+  script:
+    # Health check
+    - curl --fail https://spam-classifier-rrrxukd5iq-ey.a.run.app/health
+
+    # Prediction test
+    - >
+      curl --fail -X POST
+      https://spam-classifier-rrrxukd5iq-ey.a.run.app/predict
+      -H "Content-Type: application/json"
+      -d '{"texts":["Congratulations! You won a free prize","Hey, are we still meeting tomorrow?"]}'
+
+      
