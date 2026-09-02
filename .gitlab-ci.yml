@@ -128,19 +128,19 @@ deploy:
     reports:
       dotenv: deploy.env
 
-      
+
 integration_tests:
   stage: integration_tests
   image: curlimages/curl:latest
 
   script:
     # Health check
-    - curl --fail https://spam-classifier-rrrxukd5iq-ey.a.run.app/health
+    - curl --fail "$SERVICE_URL/health"
 
     # Prediction test
     - >
       curl --fail -X POST
-      https://spam-classifier-rrrxukd5iq-ey.a.run.app/predict
+      "$SERVICE_URL/predict"
       -H "Content-Type: application/json"
       -d '{"texts":["Congratulations! You won a free prize","Hey, are we still meeting tomorrow?"]}'
 
