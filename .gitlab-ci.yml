@@ -46,6 +46,8 @@ train:
     - echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
 
     - gcloud iam workload-identity-pools create-cred-config $GCP_WIF_PROVIDER --service-account=$GCP_SERVICE_ACCOUNT --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
+    
+    - export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json
 
     - gcloud auth login --cred-file=/tmp/gcp-credentials.json
 
