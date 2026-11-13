@@ -1,0 +1,19 @@
+# Copy this file to terraform.tfvars and fill in your own values.
+
+# Google Cloud project ID where all resources are created
+project_id = "<your-gcp-project-id>"
+
+# Region for regional resources (Cloud Run, Artifact Registry, bucket)
+region = "europe-west3"
+
+# GCS bucket for datasets and models
+bucket_name = "<your-unique-bucket-name>"
+
+# GitLab project allowed to authenticate to Google Cloud via Workload Identity Federation
+# Format: <group-or-user>/<project>, e.g. "my-group/spam-classifier"
+gitlab_project_path = "<your-group>/<your-project>"
+
+# Optional: only change these if you need different values
+# service_name = "spam-classifier"
+# gitlab_url   = "https://gitlab.com"   
+

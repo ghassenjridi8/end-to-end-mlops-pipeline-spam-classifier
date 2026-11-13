@@ -6,5 +6,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+
+    gitlab = {
+      source = "gitlabhq/gitlab"
+    }
+
   }
 }

@@ -1,0 +1,4 @@
+# Copy to backend.hcl and set your own state bucket
+bucket = "<your-terraform-state-bucket>"
+
+
