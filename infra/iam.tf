@@ -20,7 +20,7 @@ resource "google_storage_bucket_iam_member" "gitlab_ci_bucket_object_admin" {
   member = google_service_account.gitlab_ci.member
 }
 
-# 10b. redundant: objectAdmin already covers this
+# 10b. objectAdmin already covers this
   resource "google_storage_bucket_iam_member" "gitlab_ci_bucket_object_viewer" {
     bucket = google_storage_bucket.ml_bucket.name
     role   = "roles/storage.objectViewer"

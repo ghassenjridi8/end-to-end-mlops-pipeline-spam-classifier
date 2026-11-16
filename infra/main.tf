@@ -118,6 +118,7 @@ resource "google_iam_workload_identity_pool_provider" "gitlab" {
     "google.subject"         = "assertion.sub"
     "attribute.project_path" = "assertion.project_path"
     "attribute.ref"          = "assertion.ref"
+    "attribute.ref_path"     = "assertion.ref_path"
   }
 
   attribute_condition = "assertion.project_path=='${var.gitlab_project_path}'"

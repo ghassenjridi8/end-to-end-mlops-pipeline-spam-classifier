@@ -34,3 +34,14 @@ variable "gitlab_url" {
   type        = string
   default     = "https://gitlab.com"
 }
+
+variable "tf_state_bucket" {
+  description = "Existing GCS bucket holding the Terraform state (same as in backend.hcl)"
+  type        = string
+}
+
+variable "gitlab_apply_branch" {
+  description = "Only pipelines on this branch may use the terraform-apply service account"
+  type        = string
+  default     = "main"
+}

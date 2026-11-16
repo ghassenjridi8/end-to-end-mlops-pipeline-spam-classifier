@@ -17,3 +17,5 @@ gitlab_project_path = "<your-group>/<your-project>"
 # service_name = "spam-classifier"
 # gitlab_url   = "https://gitlab.com"   
 
+# Bucket holding the Terraform state (same as in backend.hcl)
+tf_state_bucket = "<your-terraform-state-bucket>"
