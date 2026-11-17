@@ -1,5 +1,6 @@
 stages:
   - terraform_plan
+  - terraform_apply
   - lint
   - train
   - evaluate
@@ -42,6 +43,7 @@ variables:
   rules:
     - changes:
         - infra/**/*
+        - .gitlab-ci.yml
 
 
 
@@ -58,7 +60,24 @@ terraform_plan:
       - infra/plan.tfplan
     expire_in: 1 week
 
-
+terraform_apply:
+  extends: .terraform_base
+  stage: terraform_apply
+  variables:
+    TF_SERVICE_ACCOUNT: $TF_APPLY_SERVICE_ACCOUNT
+  script:
+    # GitLab write token from Secret Manager (only terraform-apply can read it)
+    - export GITLAB_TOKEN="$(gcloud secrets versions access latest --secret=terraform-gitlab-token)"
+    - terraform apply -input=false plan.tfplan
+  dependencies:
+    - terraform_plan
+  resource_group: terraform
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
+      when: manual
 
 lint:
   stage: lint
