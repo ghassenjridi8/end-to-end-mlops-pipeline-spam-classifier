@@ -36,7 +36,7 @@ variable "gitlab_url" {
 }
 
 variable "tf_state_bucket" {
-  description = "Existing GCS bucket holding the Terraform state (same as in backend.hcl)"
+  description = "Existing GCS bucket holding the Terraform state (same as in backend.tf): will be used by the terraform-ci pipeline to read the state"
   type        = string
 }
 

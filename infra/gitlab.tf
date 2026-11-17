@@ -11,6 +11,8 @@ locals {
     ARTIFACT_REPOSITORY       = google_artifact_registry_repository.spam_classifier.repository_id
     IMAGE_NAME                = var.service_name
     CLOUD_RUN_SERVICE         = google_cloud_run_v2_service.spam_classifier.name
+    TF_PLAN_SERVICE_ACCOUNT  = google_service_account.terraform_plan.email #Terraform pipeline: service accounts the jobs log in as tf plan
+    TF_APPLY_SERVICE_ACCOUNT = google_service_account.terraform_apply.email #Terraform pipeline: service accounts the jobs log in as tf apply
   }
 }
 
@@ -24,3 +26,5 @@ resource "gitlab_project_variable" "ci" {
   masked    = false
   raw       = true
 }
+
+

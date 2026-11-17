@@ -8,6 +8,7 @@ locals {
     "artifactregistry.googleapis.com",     # Docker repo
     "run.googleapis.com",                  # Cloud Run
     "aiplatform.googleapis.com",           # Vertex AI (gitlab-ci has aiplatform.user)
+    "secretmanager.googleapis.com",        # Terraform pipeline: GitLab write token to pass variables to app CI/CD
   ]
 }
 

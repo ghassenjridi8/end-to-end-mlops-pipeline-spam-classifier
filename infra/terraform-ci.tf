@@ -53,6 +53,7 @@ locals {
     "roles/storage.admin",                   # buckets + bucket IAM (the state bucket also)
     "roles/artifactregistry.admin",          # Docker repo + repo IAM
     "roles/run.admin",                       # Cloud Run service + its IAM
+    "roles/secretmanager.admin",             # manage the GitLab token secret + read its value in the apply job
   ]
 }
 
@@ -88,4 +89,20 @@ resource "google_service_account_iam_member" "terraform_apply_wif_user" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.gitlab.name}/attribute.ref_path/refs/heads/${var.gitlab_apply_branch}"
 }
+
+
+# GitLab write token for the apply job
+# Terraform creates only the empty secret; the token value is added by hand, so it never ends up in the Terraform state.
+
+resource "google_secret_manager_secret" "gitlab_token" {
+  secret_id = "terraform-gitlab-token"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required]
+}
+
+
 
