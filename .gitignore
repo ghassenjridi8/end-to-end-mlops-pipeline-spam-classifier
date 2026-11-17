@@ -25,5 +25,5 @@ model.pkl
 *.tfstate.*
 *.tfplan
 crash.log
-terraform.tfvars
-backend.hcl
+infra/imports.tf
+

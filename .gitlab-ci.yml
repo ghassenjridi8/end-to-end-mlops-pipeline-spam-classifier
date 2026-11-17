@@ -1,4 +1,6 @@
 stages:
+  - terraform_plan
+  - terraform_apply
   - lint
   - train
   - evaluate
@@ -10,6 +12,72 @@ stages:
 variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
+
+
+#####Terraform#######
+
+# Shared setup for all Terraform jobs: install Terraform, log in to GCP via WIF, init
+# Each job sets TF_SERVICE_ACCOUNT (which SA to log in as) and GITLAB_TOKEN:
+.terraform_base:
+  image: google/cloud-sdk:slim
+  variables:
+    TF_VERSION: "1.17.2"
+    TF_IN_AUTOMATION: "true"
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: $GCP_WIF_AUDIENCE
+  before_script:
+    # install Terraform (same version as locally)
+    - apt-get update && apt-get install -y unzip
+    - curl -fsSL "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip" -o /tmp/terraform.zip
+    - unzip -q /tmp/terraform.zip -d /usr/local/bin
+    - terraform version
+    # log in to GCP as the job's service account
+    - echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
+    - gcloud iam workload-identity-pools create-cred-config $GCP_WIF_PROVIDER --service-account=$TF_SERVICE_ACCOUNT --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
+    - export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json
+    - gcloud auth login --cred-file=/tmp/gcp-credentials.json
+    # init against the remote state
+    - cd infra
+    - terraform init -input=false
+  rules:
+    - changes:
+        - infra/**/*
+        - .gitlab-ci.yml
+
+
+
+terraform_plan:
+  extends: .terraform_base
+  stage: terraform_plan
+  variables:
+    TF_SERVICE_ACCOUNT: $TF_PLAN_SERVICE_ACCOUNT
+    GITLAB_TOKEN: $TF_GITLAB_READ_TOKEN
+  script:
+    - terraform plan -input=false -lock=false -out=plan.tfplan
+  artifacts:
+    paths:
+      - infra/plan.tfplan
+    expire_in: 1 week
+
+terraform_apply:
+  extends: .terraform_base
+  stage: terraform_apply
+  variables:
+    TF_SERVICE_ACCOUNT: $TF_APPLY_SERVICE_ACCOUNT
+  script:
+    # GitLab write token from Secret Manager (only terraform-apply can read it)
+    - export GITLAB_TOKEN="$(gcloud secrets versions access latest --secret=terraform-gitlab-token)"
+    - terraform apply -input=false plan.tfplan
+  dependencies:
+    - terraform_plan
+  resource_group: terraform
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
+      when: manual
 
 lint:
   stage: lint
