@@ -67,7 +67,8 @@ terraform_apply:
     TF_SERVICE_ACCOUNT: $TF_APPLY_SERVICE_ACCOUNT
   script:
     # GitLab write token from Secret Manager (only terraform-apply can read it)
-    - export GITLAB_TOKEN="$(gcloud secrets versions access latest --secret=terraform-gitlab-token)"
+    - GITLAB_TOKEN="$(gcloud secrets versions access latest --secret=terraform-gitlab-token --project=$GCP_PROJECT_ID)"
+    - export GITLAB_TOKEN
     - terraform apply -input=false plan.tfplan
   dependencies:
     - terraform_plan
