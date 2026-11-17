@@ -192,7 +192,9 @@ deploy:
   artifacts:
     reports:
       dotenv: deploy.env
-
+  
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 integration_tests:
   stage: integration_tests
@@ -208,6 +210,9 @@ integration_tests:
       "$SERVICE_URL/predict"
       -H "Content-Type: application/json"
       -d '{"texts":["Congratulations! You won a free prize","Hey, are we still meeting tomorrow?"]}'
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 
 
