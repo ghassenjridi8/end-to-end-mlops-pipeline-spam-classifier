@@ -1,3 +1,13 @@
+# Only run branch (and tag) pipelines; no separate merge request pipelines: the branch pipeline already shows up in the MR.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: always
+
+
+
+
 stages:
   - terraform_plan
   - terraform_apply
@@ -186,13 +196,15 @@ deploy:
 
     - gcloud auth login --cred-file=/tmp/gcp-credentials.json
 
-    - gcloud run deploy $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --image=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:$CI_COMMIT_SHA --region=$GCP_REGION --platform=managed --allow-unauthenticated --service-account=$CLOUD_RUN_SERVICE_ACCOUNT
+    - gcloud run deploy $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --image=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:$CI_COMMIT_SHA --region=$GCP_REGION --platform=managed --service-account=$CLOUD_RUN_SERVICE_ACCOUNT
 
     - echo "SERVICE_URL=$(gcloud run services describe $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --region=$GCP_REGION --format='value(status.url)')" > deploy.env
   artifacts:
     reports:
       dotenv: deploy.env
-
+  
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 integration_tests:
   stage: integration_tests
@@ -208,6 +220,9 @@ integration_tests:
       "$SERVICE_URL/predict"
       -H "Content-Type: application/json"
       -d '{"texts":["Congratulations! You won a free prize","Hey, are we still meeting tomorrow?"]}'
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 
 
