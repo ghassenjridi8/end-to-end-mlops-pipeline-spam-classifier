@@ -53,7 +53,7 @@ locals {
     "roles/storage.admin",                   # buckets + bucket IAM (the state bucket also)
     "roles/artifactregistry.admin",          # Docker repo + repo IAM
     "roles/run.admin",                       # Cloud Run service + its IAM
-    "roles/secretmanager.admin",             # manage the GitLab token secret + read its value in the apply job
+    "roles/secretmanager.admin",             # manage the "terraform-gitlab-token" secret (not read its value)
   ]
 }
 
@@ -104,5 +104,11 @@ resource "google_secret_manager_secret" "gitlab_token" {
   depends_on = [google_project_service.required]
 }
 
+
+resource "google_secret_manager_secret_iam_member" "terraform_apply_gitlab_token" {
+  secret_id = google_secret_manager_secret.gitlab_token.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = google_service_account.terraform_apply.member
+}
 
 
