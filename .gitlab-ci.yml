@@ -196,7 +196,7 @@ deploy:
 
     - gcloud auth login --cred-file=/tmp/gcp-credentials.json
 
-    - gcloud run deploy $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --image=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:$CI_COMMIT_SHA --region=$GCP_REGION --platform=managed --allow-unauthenticated --service-account=$CLOUD_RUN_SERVICE_ACCOUNT
+    - gcloud run deploy $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --image=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:$CI_COMMIT_SHA --region=$GCP_REGION --platform=managed --service-account=$CLOUD_RUN_SERVICE_ACCOUNT
 
     - echo "SERVICE_URL=$(gcloud run services describe $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --region=$GCP_REGION --format='value(status.url)')" > deploy.env
   artifacts:
