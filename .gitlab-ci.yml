@@ -48,7 +48,7 @@ variables:
     - export GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-credentials.json
     - gcloud auth login --cred-file=/tmp/gcp-credentials.json
     # init against the remote state
-    - cd infra
+    - cd infra/envs/prod
     - terraform init -input=false
   rules:
     - changes:
@@ -67,7 +67,7 @@ terraform_plan:
     - terraform plan -input=false -lock=false -out=plan.tfplan
   artifacts:
     paths:
-      - infra/plan.tfplan
+      - infra/envs/prod/plan.tfplan
     expire_in: 1 week
 
 terraform_apply:
