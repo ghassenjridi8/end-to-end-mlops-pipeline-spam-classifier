@@ -22,6 +22,7 @@ resource "gitlab_project_variable" "ci" {
   project   = var.gitlab_project_path
   key       = each.key
   value     = each.value
+  environment_scope = var.gitlab_environment_scope # defines if variables are for prod/staging
   protected = false
   masked    = false
   raw       = true
