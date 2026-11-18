@@ -94,7 +94,7 @@ resource "google_service_account" "gitlab_ci" {
 
 #4. service account Cloud Run runs as
 resource "google_service_account" "runtime" {
-  account_id   = "${var.service_name}-runtime"
+  account_id   = "spam-classifier-runtime"
   display_name = "Spam Classifier Runtime"
   description  = "Runtime identity for the spam-classifier Cloud Run service"
 

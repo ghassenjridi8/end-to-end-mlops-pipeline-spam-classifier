@@ -1,3 +1,7 @@
+# Production environment: all resources come from the shared module,
+# this environment's values are from terraform.tfvars.
+
+
 module "spam_classifier" {
   source = "../../modules/spam-classifier"
 
