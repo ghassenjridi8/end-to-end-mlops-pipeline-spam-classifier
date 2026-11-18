@@ -45,3 +45,11 @@ variable "gitlab_apply_branch" {
   type        = string
   default     = "main"
 }
+
+variable "gitlab_environment_scope" {
+  description = "GitLab environment scope for this environment's CI/CD variables ('*' = all jobs)"
+  type        = string
+  default     = "*"
+}
+
+
