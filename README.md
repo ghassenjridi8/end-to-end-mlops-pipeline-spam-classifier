@@ -1,93 +1,167 @@
-# spam-classifier
+# End-to-End MLOps Pipeline: Spam Classifier
 
+An end-to-end MLOps project that trains, evaluates, containerizes and deploys a spam classifier to Google Cloud Run through a fully automated GitLab CI/CD pipeline, with all cloud infrastructure managed as code using Terraform.
 
+## Table of Contents
 
-## Getting started
+* [Introduction](#introduction)
+* [Technologies](#technologies)
+* [Setup](#setup)
+* [Contact](#contact)
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Introduction
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+This project takes a spam classification model from training to a public prediction API, with every step automated and every piece of infrastructure defined in code.
 
-## Add your files
+* **ML pipeline:** On every push, GitLab CI lints the code, trains the model on a dataset stored in Google Cloud Storage, evaluates it, versions the trained model in GCS per commit, builds a Docker image, deploys it to Cloud Run and runs integration tests against the live API.
+* **Infrastructure as Code:** All Google Cloud resources (Cloud Run service, Artifact Registry, GCS bucket, service accounts, IAM bindings, Workload Identity Federation, enabled APIs, Secret Manager) are managed with Terraform. Terraform also writes the values the pipeline needs as GitLab CI/CD variables, so `.gitlab-ci.yml` contains no hardcoded cloud configuration.
+* **Infrastructure changes through the pipeline:** Terraform runs inside the same pipeline. Every branch gets a `terraform plan`, so infrastructure changes can be reviewed in the merge request. On `main`, `terraform apply` runs the saved plan after a manual approval, before the application is deployed.
+* **Keyless, least-privilege security:**
+  * No service account keys anywhere: GitLab CI authenticates to Google Cloud with short-lived OIDC tokens through Workload Identity Federation.
+  * Separate identities per job: a deploy identity for the app, a read-only `terraform-plan` identity usable from any branch, and an admin `terraform-apply` identity that only pipelines on the `main` branch can use.
+  * The GitLab token Terraform needs for writing CI/CD variables is stored in Google Secret Manager and readable only by the apply identity.
+* **Controlled deployments:** Feature branches run checks only (lint, train, evaluate, build, plan). Only `main` applies infrastructure and deploys to Cloud Run.
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+The deployed API exposes two endpoints:
+
+* `GET /health`: health check
+* `POST /predict`: classifies a list of messages, e.g. `{"texts": ["Congratulations! You won a free prize", "Hey, are we still meeting tomorrow?"]}`
+
+## Technologies
+
+Here's what I used for this project:
+
+* Python: Used for model training, evaluation and the prediction API.
+* Ruff: Linter used in the pipeline to keep the code clean.
+* Docker: Used to containerize the prediction API (built in CI with Docker-in-Docker).
+* GitLab CI/CD: Pipeline that automates infrastructure, training, evaluation, build, deployment and testing.
+* Terraform: Infrastructure as Code tool used to manage all Google Cloud resources and the GitLab CI/CD variables (Google and GitLab providers, remote state in GCS).
+* Google Cloud Run: Serverless platform hosting the prediction API, scaling from 0 to 20 instances.
+* Google Artifact Registry: Stores the Docker images, tagged per commit.
+* Google Cloud Storage: Stores the training dataset, the trained models (versioned per commit) and the Terraform state.
+* Workload Identity Federation: Lets GitLab CI authenticate to Google Cloud without long-lived keys.
+* Google Secret Manager: Stores the GitLab write token used by the Terraform apply job.
+* IAM: Dedicated service accounts with least-privilege roles for each pipeline job and for the running service.
+* GitLab: All project code is stored and versioned in GitLab, and mirrored to this repository.
+
+## Setup
+
+To run this project in your own Google Cloud project and GitLab project, follow these steps.
+
+### Prerequisites
+
+* A Google Cloud project with billing enabled, and Owner access to it
+* A GitLab project containing a copy of this repository, with the `main` branch protected (the default)
+* `gcloud` CLI and Terraform `1.17.x` installed (both are preinstalled in Google Cloud Shell)
+
+### 1. Clone the repository
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/ghassenjridi8/spam-classifier.git
-git branch -M main
-git push -uf origin main
+git clone https://gitlab.com/<your-group>/<your-project>.git
+cd <your-project>
 ```
 
-## Integrate with your tools
+### 2. Create a bucket for the Terraform state
 
-* [Set up project integrations](https://gitlab.com/ghassenjridi8/spam-classifier/-/settings/integrations)
+This is the only resource Terraform cannot create for itself.
 
-## Collaborate with your team
+```
+gcloud storage buckets create gs://<your-tfstate-bucket> \
+  --project=<your-project-id> \
+  --location=europe-west3 \
+  --uniform-bucket-level-access \
+  --public-access-prevention
+gcloud storage buckets update gs://<your-tfstate-bucket> --versioning
+```
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### 3. Configure Terraform
 
-## Test and Deploy
+In `infra/backend.tf`, set your state bucket:
 
-Use the built-in continuous integration in GitLab.
+```
+bucket = "<your-tfstate-bucket>"
+```
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+In `infra/terraform.tfvars`, set your own values:
 
-***
+```
+project_id          = "<your-project-id>"
+region              = "europe-west3"
+bucket_name         = "<globally-unique-bucket-name>"
+gitlab_project_path = "<your-group>/<your-project>"
+tf_state_bucket     = "<your-tfstate-bucket>"
+```
 
-# Editing this README
+### 4. Create the GitLab write token
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+In your GitLab project, go to **Settings → Access tokens** and create a token with role **Maintainer** and scope **api**. Terraform uses it to create the CI/CD variables. Make it available in your shell without printing it:
 
-## Suggestions for a good README
+```
+read -s GITLAB_TOKEN && export GITLAB_TOKEN
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### 5. Bootstrap the infrastructure
 
-## Name
-Choose a self-explaining name for your project.
+Run Terraform once from your machine (or Cloud Shell). This creates everything, including the service accounts and permissions the pipeline itself needs:
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```
+cd infra
+gcloud auth application-default login   # not needed in Cloud Shell
+terraform init
+terraform apply
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+If the first apply fails with a `403 ... API has not been used` error, the newly enabled APIs are still propagating. Wait a minute and run `terraform apply` again.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### 6. Store the write token in Secret Manager
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+The Terraform apply job reads the token from here:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```
+printf '%s' "$GITLAB_TOKEN" | gcloud secrets versions add terraform-gitlab-token --data-file=-
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### 7. Create the GitLab read token
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Create a second token in **Settings → Access tokens** with role **Maintainer** and scope **read_api** only. Then add it under **Settings → CI/CD → Variables**:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+* Key: `TF_GITLAB_READ_TOKEN`
+* Visibility: Masked
+* Protect variable: unchecked (the plan job runs on all branches)
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+### 8. Upload the training dataset
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+```
+gcloud storage cp messages.csv gs://<globally-unique-bucket-name>/data/messages.csv
+```
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### 9. Run the pipeline
 
-## License
-For open source projects, say how it is licensed.
+Push to `main` (or run a pipeline for `main` from **Build → Pipelines**). When the pipeline reaches `terraform_apply`, review the plan in the `terraform_plan` job and click ▶ to continue. The pipeline then trains the model, builds the image and deploys it to Cloud Run. Until the first deployment, Cloud Run serves a placeholder image.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+### 10. Test the API
+
+```
+cd infra
+SERVICE_URL=$(terraform output -raw service_url)
+
+curl "$SERVICE_URL/health"
+
+curl -X POST "$SERVICE_URL/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"texts":["Congratulations! You won a free prize","Hey, are we still meeting tomorrow?"]}'
+```
+
+### Making infrastructure changes
+
+1. Change the Terraform code in `infra/` on a feature branch and push it.
+2. Review the `terraform_plan` output in the merge request pipeline.
+3. Merge into `main`, review the plan again, and click ▶ on `terraform_apply`.
+
+## Contact
+
+If you have any questions or comments about this project, please contact:
+
+Ghassen – [Jridi59@gmail.com](mailto:Jridi59@gmail.com)
+
+* [LinkedIn](https://www.linkedin.com/in/ghassen-jridi-94b81034a/)
