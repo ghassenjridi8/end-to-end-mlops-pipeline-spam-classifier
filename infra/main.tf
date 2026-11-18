@@ -23,6 +23,10 @@ resource "google_storage_bucket" "ml_bucket" {
   }
 
   depends_on = [google_project_service.required] 
+  labels = {
+    project    = var.service_name
+    managed-by = "terraform"
+  }
 }
 
 
