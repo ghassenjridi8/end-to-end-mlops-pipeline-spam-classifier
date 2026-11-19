@@ -45,3 +45,18 @@ variable "gitlab_apply_branch" {
   type        = string
   default     = "main"
 }
+
+
+variable "image_readers" {
+  description = "Extra members allowed to read images from this environment's Artifact Registry repo"
+  type        = list(string)
+  default     = []
+}
+
+
+variable "prod_project_id" {
+  description = "Project ID of the prod environment; its deploy SA may read this environment's images to promote them"
+  type        = string
+}
+
+

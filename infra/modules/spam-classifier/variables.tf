@@ -53,3 +53,10 @@ variable "gitlab_environment_scope" {
 }
 
 
+variable "image_readers" {
+  description = "Extra members allowed to read images from this environment's Artifact Registry repo (e.g. prod's deploy SA, to promote images from staging)"
+  type        = list(string)
+  default     = []
+}
+
+
