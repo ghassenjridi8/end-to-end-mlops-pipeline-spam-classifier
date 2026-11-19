@@ -17,6 +17,12 @@ stages:
   - build
   - deploy
   - integration_tests
+  #prod (after manual approval)
+  - approve_prod
+  - terraform_apply_prod
+  - promote
+  - deploy_prod
+  - integration_tests_prod
 
 variables:
   DOCKER_HOST: tcp://docker:2375
@@ -90,28 +96,7 @@ terraform_plan_staging:
       - infra/envs/staging/plan.tfplan
     expire_in: 1 week
 
-terraform_apply_prod:
-  extends: .terraform_base
-  stage: terraform_apply
-  environment:
-    name: production
-  variables:
-    TF_ENV_DIR: infra/envs/prod
-    TF_SERVICE_ACCOUNT: $TF_APPLY_SERVICE_ACCOUNT
-  script:
-     # GitLab write token from this environment's Secret Manager (only terraform-apply can read it)
-    - GITLAB_TOKEN="$(gcloud secrets versions access latest --secret=terraform-gitlab-token --project=$GCP_PROJECT_ID)"
-    - export GITLAB_TOKEN
-    - terraform apply -input=false plan.tfplan
-  dependencies:
-    - terraform_plan_prod
-  resource_group: terraform-prod
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes:
-        - infra/**/*
-        - .gitlab-ci.yml
-      when: manual
+
 
 
 terraform_apply_staging:
@@ -148,6 +133,9 @@ lint:
 train:
   stage: train
   image: google/cloud-sdk:slim
+  environment:
+      name: staging
+      action: prepare
 
   id_tokens:
     GITLAB_OIDC_TOKEN:
@@ -185,7 +173,9 @@ evaluate:
 build:
   stage: build
   image: google/cloud-sdk:slim
-
+  environment:
+        name: staging
+        action: prepare
   services:
     - docker:27-dind
 
@@ -210,10 +200,20 @@ build:
 
     - docker push $GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:$CI_COMMIT_SHA
 
+    # record the exact pushed image (by digest) for the promote job
+    - echo "STAGING_IMAGE=$(docker inspect --format='{{index .RepoDigests 0}}' $GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:$CI_COMMIT_SHA)" > build.env
 
-deploy:
+  artifacts:
+    reports:
+      dotenv: build.env
+
+
+deploy_staging:
   stage: deploy
   image: google/cloud-sdk:slim
+  environment:
+      name: staging
+      
 
   id_tokens:
     GITLAB_OIDC_TOKEN:
@@ -236,9 +236,14 @@ deploy:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-integration_tests:
+integration_tests_staging:
   stage: integration_tests
   image: curlimages/curl:latest
+  environment:
+    name: staging
+    action: verify
+  dependencies:
+    - deploy_staging
 
   script:
     # Health check
@@ -256,3 +261,133 @@ integration_tests:
 
 
 
+#prod (after manual approval)
+approve_prod:
+  stage: approve_prod
+  image: alpine:latest
+  script:
+    - echo "Staging passed. Promoting commit $CI_COMMIT_SHORT_SHA to production."
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+
+
+
+terraform_apply_prod:
+  extends: .terraform_base
+  stage: terraform_apply_prod
+  environment:
+    name: production
+  variables:
+    TF_ENV_DIR: infra/envs/prod
+    TF_SERVICE_ACCOUNT: $TF_APPLY_SERVICE_ACCOUNT
+  script:
+     # GitLab write token from this environment's Secret Manager (only terraform-apply can read it)
+    - GITLAB_TOKEN="$(gcloud secrets versions access latest --secret=terraform-gitlab-token --project=$GCP_PROJECT_ID)"
+    - export GITLAB_TOKEN
+    - terraform apply -input=false plan.tfplan
+  dependencies:
+    - terraform_plan_prod
+  resource_group: terraform-prod
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - infra/**/*
+        - .gitlab-ci.yml
+      
+
+
+
+promote_image:
+  stage: promote
+  image: google/cloud-sdk:slim
+  environment:
+    name: production
+    action: prepare
+  variables:
+    CRANE_VERSION: "v0.20.2"
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: $GCP_WIF_AUDIENCE
+  dependencies:
+    - build
+  script:
+    # log in to GCP as prod's gitlab-ci SA (reader on staging repo, writer on prod)
+    - echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
+    - gcloud iam workload-identity-pools create-cred-config $GCP_WIF_PROVIDER --service-account=$GCP_SERVICE_ACCOUNT --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
+    - gcloud auth login --cred-file=/tmp/gcp-credentials.json
+
+    # install crane (copies images between registries without pulling them locally)
+    - curl -fsSL "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" | tar -xz -C /usr/local/bin crane
+    - crane auth login $GCP_REGION-docker.pkg.dev -u oauth2accesstoken -p "$(gcloud auth print-access-token)"
+
+    # copy the exact tested image (by digest) from staging's registry to prod's
+    - PROD_IMAGE="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME:$CI_COMMIT_SHA"
+    - echo "Promoting $STAGING_IMAGE -> $PROD_IMAGE"
+    - crane copy "$STAGING_IMAGE" "$PROD_IMAGE"
+    - crane digest "$PROD_IMAGE"
+      # pass the promoted image (by digest) to deploy_prod
+    - echo "PROD_IMAGE=$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPOSITORY/$IMAGE_NAME@$(crane digest "$PROD_IMAGE")" > promote.env
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  artifacts:
+    reports:
+      dotenv: promote.env
+
+
+
+deploy_prod:
+  stage: deploy_prod
+  image: google/cloud-sdk:slim
+  environment:
+      name: production
+  dependencies:
+    - promote_image  
+
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: $GCP_WIF_AUDIENCE
+
+  script:
+    - echo "$GITLAB_OIDC_TOKEN" > /tmp/gitlab-oidc-token
+
+    - gcloud iam workload-identity-pools create-cred-config $GCP_WIF_PROVIDER --service-account=$GCP_SERVICE_ACCOUNT --output-file=/tmp/gcp-credentials.json --credential-source-file=/tmp/gitlab-oidc-token
+
+    - gcloud auth login --cred-file=/tmp/gcp-credentials.json
+
+    - gcloud run deploy $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --image=$PROD_IMAGE --region=$GCP_REGION --platform=managed --service-account=$CLOUD_RUN_SERVICE_ACCOUNT
+
+    - echo "SERVICE_URL=$(gcloud run services describe $CLOUD_RUN_SERVICE --project=$GCP_PROJECT_ID --region=$GCP_REGION --format='value(status.url)')" > deploy.env
+  artifacts:
+    reports:
+      dotenv: deploy.env
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+
+
+integration_tests_prod:
+  stage: integration_tests_prod
+  image: curlimages/curl:latest
+  environment:
+    name: production
+    action: verify
+  dependencies:
+    - deploy_prod
+
+  script:
+    # Health check
+    - curl --fail "$SERVICE_URL/health"
+
+    # Prediction test
+    - >
+      curl --fail -X POST
+      "$SERVICE_URL/predict"
+      -H "Content-Type: application/json"
+      -d '{"texts":["Congratulations! You won a free prize","Hey, are we still meeting tomorrow?"]}'
+
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+
+    
