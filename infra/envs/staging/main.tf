@@ -12,6 +12,7 @@ module "spam_classifier" {
   gitlab_apply_branch = var.gitlab_apply_branch
   tf_state_bucket     = var.tf_state_bucket
   gitlab_environment_scope = "staging"
+  image_readers = ["serviceAccount:gitlab-ci@${var.prod_project_id}.iam.gserviceaccount.com"] ## prod's deploy SA copies the tested image from this registry to prod's
 }
 
 

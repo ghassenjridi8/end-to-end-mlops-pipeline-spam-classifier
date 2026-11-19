@@ -63,3 +63,14 @@ resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
   member = "allUsers"
 }
 
+# Extra readers of this environment's image repo (used to promote images to prod)
+resource "google_artifact_registry_repository_iam_member" "image_readers" {
+  for_each = toset(var.image_readers)
+
+  location   = google_artifact_registry_repository.spam_classifier.location
+  repository = google_artifact_registry_repository.spam_classifier.name
+  role       = "roles/artifactregistry.reader"
+  member     = each.value
+}
+
+
