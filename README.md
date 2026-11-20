@@ -58,7 +58,7 @@ flowchart LR
     plan --> AS[terraform_apply_staging<br/>if infra changed]
     AS --> L[lint] --> T[train] --> E[evaluate] --> B[build<br/>push to staging registry]
     B --> DS[deploy_staging] --> IS[integration_tests_staging]
-    IS --> G{{"▶ approve_prod<br/>manual gate"}}
+    IS --> G{{"approve_prod<br/>manual gate"}}
     G --> AP[terraform_apply_prod<br/>if infra changed]
     AP --> PR[promote_image<br/>copy by digest to prod registry]
     PR --> DP[deploy_prod] --> IP[integration_tests_prod]
@@ -89,8 +89,28 @@ To run this project in your own Google Cloud projects and GitLab project, follow
 ### Prerequisites
 
 * Two Google Cloud projects with billing enabled, one for staging and one for production, and Owner access to both
-* A GitLab project containing a copy of this repository, with the `main` branch protected (the default)
-* `gcloud` CLI and Terraform `1.17.x` installed (both are preinstalled in Google Cloud Shell)
+* A GitLab project containing a copy of this repository (for example a fork), with the `main` branch protected (the default)
+* `gcloud` CLI (preinstalled in Google Cloud Shell)
+* Terraform `1.17.x`, the same version the pipeline uses
+
+**Installing Terraform in Google Cloud Shell**
+
+Cloud Shell only keeps your home folder between sessions, so system packages installed by hand are lost on restart. Cloud Shell runs `~/.customize_environment` automatically at the start of every session, so installing Terraform from there keeps it available:
+
+```
+cat <<'EOF' > ~/.customize_environment
+# Set up the HashiCorp repository and install Terraform (runs at every Cloud Shell start)
+wget -qO - https://apt.releases.hashicorp.com/gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt-get -o DPkg::Lock::Timeout=300 update && sudo apt-get -o DPkg::Lock::Timeout=300 install -y terraform=1.17.2-1
+EOF
+bash ~/.customize_environment
+terraform version
+```
+
+If you see `Could not get lock`, Cloud Shell is still running its own package updates. Wait a minute and run `bash ~/.customize_environment` again.
+
+The dataset used for training is included in the repository at `data/messages.csv`.
 
 ### 1. Clone the repository
 
@@ -114,6 +134,8 @@ gcloud storage buckets update gs://<tfstate-bucket> --versioning
 
 ### 3. Configure Terraform
 
+Both environments come with the author's values in `backend.tf` and `terraform.tfvars`. Replace **every** value with your own. Bucket names are written **without** the `gs://` prefix.
+
 **Production** (`infra/envs/prod/`)
 
 In `backend.tf`, set the production state bucket:
@@ -122,7 +144,7 @@ In `backend.tf`, set the production state bucket:
 bucket = "<prod-tfstate-bucket>"
 ```
 
-In `terraform.tfvars`:
+In `terraform.tfvars` (set your own values):
 
 ```
 project_id          = "<prod-project-id>"
@@ -140,7 +162,7 @@ In `backend.tf`, set the staging state bucket:
 bucket = "<staging-tfstate-bucket>"
 ```
 
-In `terraform.tfvars`:
+In `terraform.tfvars` (set your own values):
 
 ```
 project_id          = "<staging-project-id>"
@@ -152,15 +174,25 @@ tf_state_bucket     = "<staging-tfstate-bucket>"
 prod_project_id     = "<prod-project-id>"
 ```
 
-`prod_project_id` lets the production deploy identity read images from the staging registry, so they can be promoted.
+* `gitlab_project_path` must be **your** GitLab project (for example your fork), in both environments. Terraform writes the CI/CD variables there.
+* `prod_project_id` lets the production deploy identity read images from the staging registry, so they can be promoted.
 
 ### 4. Create the GitLab write token
 
-In your GitLab project, go to **Settings → Access tokens** and create a token with role **Maintainer** and scope **api**. Terraform uses it to create the CI/CD variables. Make it available in your shell without printing it:
+In your GitLab project, go to **Settings → Access tokens** and create a token with role **Maintainer** and scope **api**. Terraform uses it to create the CI/CD variables. Copy the token right away, since GitLab only shows it once. Then make it available in your shell without printing it:
 
-```
-read -s GITLAB_TOKEN && export GITLAB_TOKEN
-```
+1. Run:
+
+   ```
+   read -s GITLAB_TOKEN && export GITLAB_TOKEN
+   ```
+
+2. Paste the token and press Enter. Nothing is shown while you paste, which is expected.
+3. Check that it's set (prints the token's length, not the token):
+
+   ```
+   echo ${#GITLAB_TOKEN}
+   ```
 
 ### 5. Bootstrap the infrastructure
 
@@ -171,12 +203,16 @@ gcloud auth application-default login   # not needed in Cloud Shell
 
 cd infra/envs/prod
 terraform init
+terraform plan
 terraform apply
 
 cd ../staging
 terraform init
+terraform plan
 terraform apply
 ```
+
+Before each apply, check in the plan that it only adds resources (`0 to change, 0 to destroy`) and that they are created in the right project.
 
 If an apply fails with a `403 ... API has not been used` error, the newly enabled APIs are still propagating. Wait a minute and run `terraform apply` again.
 
@@ -199,15 +235,21 @@ Create a second token in **Settings → Access tokens** with role **Maintainer**
 
 ### 8. Upload the training dataset
 
-The model is trained in staging, so the dataset goes into the staging bucket:
+The model is trained in staging, so the dataset goes into the **staging** data bucket. Its name is the `bucket_name` value in `infra/envs/staging/terraform.tfvars`:
 
 ```
-gcloud storage cp messages.csv gs://<globally-unique-bucket-name>-staging/data/messages.csv
+grep bucket_name infra/envs/staging/terraform.tfvars
+```
+
+Then, from the repository root, upload the dataset included in the repository:
+
+```
+gcloud storage cp data/messages.csv gs://<staging-bucket-name>/data/messages.csv
 ```
 
 ### 9. Run the pipeline
 
-Push to `main` (or run a pipeline for `main` from **Build → Pipelines**). The pipeline trains the model, builds the image and deploys it to staging, then runs the integration tests there. When it reaches `approve_prod`, check staging and the `terraform_plan_prod` output, then click ▶ to promote the tested image to production. Until the first deployment, each Cloud Run service serves a placeholder image.
+Push to `main` (or run a pipeline for `main` from **Build → Pipelines**). The pipeline trains the model, builds the image and deploys it to staging, then runs the integration tests there. When it reaches `approve_prod`, check staging and the `terraform_plan_prod` output, then click the **Play** button on `approve_prod` to promote the tested image to production. Until the first deployment, each Cloud Run service serves a placeholder image.
 
 ### 10. Test the API
 
@@ -226,9 +268,9 @@ curl -X POST "$SERVICE_URL/predict" \
 ### Making infrastructure changes
 
 1. Change the Terraform code in `infra/` on a feature branch and push it.
-2. Review the `terraform_plan_staging` and `terraform_plan_prod` output in the merge request pipeline.
+2. Open a merge request into `main` and review the `terraform_plan_staging` and `terraform_plan_prod` output in its pipeline. If your project is a fork, check that the merge request targets **your fork's** `main`, since GitLab may suggest the original project as the target.
 3. Merge into `main`. Staging is applied automatically.
-4. Once staging has passed, click ▶ on `approve_prod` to apply the reviewed plan to production and promote the release.
+4. Once staging has passed, click **Play** on `approve_prod` to apply the reviewed plan to production and promote the release.
 
 ## Contact
 

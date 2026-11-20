@@ -1,3 +1,4 @@
+# set your own values
 project_id          = "spam-classifier-staging-gj"
 region              = "europe-west3"
 bucket_name         = "spam-classifier-mlops-project-ghassen-staging"
